@@ -80,5 +80,50 @@ const updateDoctor = async (req, res) => {
     }
   };
 
+  const fetchAllDoctors = async (req, res) => {
+    try {
+      const doctors = await Doctor.find()
+        .populate({
+          path: 'user',
+          select: 'name email role phone address', 
+          match: { role: 'Doctor' } 
+        })
+        .exec();
   
-module.exports = { addDoctor, updateDoctor };
+      const filteredDoctors = doctors.filter(doctor => doctor.user);
+  
+      if (filteredDoctors.length === 0) {
+        return res.status(404).json({ message: 'No doctors found' });
+      }
+  
+      res.status(200).json({
+        message: 'Doctors fetched successfully', doctors: filteredDoctors});
+    } catch (error) {
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
+
+  const deleteDoctors= async(req, res)=>{
+        try {
+            const {doctorId}= req.params;
+
+            if (req.user.id !== doctorId && req.user.role !== 'Admin') {
+                return res.status(403).json({ message: 'Access denied. Only admins can delete doctors or only doctors delete their own profile.' });
+              }
+          
+
+            const deleteDoctors= await Doctor.findByIdAndDelete(doctorId);
+            if(!deleteDoctors){
+                return res.status(404).json({message: 'Doctor not found'});
+            }
+
+            res.status(200).json({message: 'Doctor deleted successfully'});
+            
+        } catch (error) {
+            console.log(error);
+            
+            res.status(500).json({message: 'Internal server error'});
+        }
+  }
+
+module.exports = { addDoctor, updateDoctor, fetchAllDoctors, deleteDoctors };
