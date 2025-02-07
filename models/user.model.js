@@ -25,7 +25,15 @@ const userSchema= new mongoose.Schema({
     address: {
         type: String,
         required: true
-    }
+    },
+    resetToken: { 
+        type: String,
+        default: null
+    },
+    resetTokenExpiration: { 
+        type: Date,
+        default: null
+    },
 }, {timestamps: true});
 
 module.exports= mongoose.model('User', userSchema);
