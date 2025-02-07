@@ -11,6 +11,7 @@ app.get('/', (req, res)=>{
 require('./config/DB');
 
 app.use('/api/users', require('./routes/user'));
+app.use('/api/hospitals', require('./routes/hospital'));
 
 const port= process.env.PORT || 3000;
 app.listen(port, ()=>{
