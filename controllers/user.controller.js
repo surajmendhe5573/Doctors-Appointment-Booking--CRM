@@ -53,9 +53,12 @@ const login= async(req, res)=>{
             return res.status(401).json({message: 'Invalid credentials'});
         }
 
-        const token= jwt.sign({id: userExist._id, role: userExist.role}, process.env.JWT_SECRET, {expiresIn: '1h'});
+        const accessToken= jwt.sign({id: userExist._id, role: userExist.role}, process.env.JWT_SECRET, {expiresIn: '1h'});
+        const refreshToken = jwt.sign({ id: userExist._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' });
 
-        res.status(200).json({message: 'User logged in successfully', token});
+        userExist.refreshToken = refreshToken;
+
+        res.status(200).json({message: 'User logged in successfully', accessToken, refreshToken});
         
     } catch (error) {
         res.status(500).json({message: 'Internal server error'});
@@ -139,4 +142,32 @@ const deleteUser= async(req, res)=>{
     }
 }
 
-module.exports= {signUp, login, fetchAllUsers, editUsers, deleteUser};
+const refreshAccessToken = async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+
+        if (!refreshToken) {
+            return res.status(400).json({ message: 'Refresh token is required' });
+        }
+
+        jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET, async (err, decoded) => {
+            if (err) {
+                return res.status(403).json({ message: 'Session expired, please log in again' });
+            }
+
+            const userExist = await User.findById(decoded.id);
+            if (!userExist || userExist.refreshToken !== process.env.refreshToken) {
+                return res.status(403).json({ message: 'Session expired, please log in again' });
+            }
+
+            const accessToken = jwt.sign({ id: userExist._id, role: userExist.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+            res.status(200).json({ accessToken });
+        });
+    } catch (error) {
+        console.error('Error refreshing token:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+module.exports= {signUp, login, fetchAllUsers, editUsers, deleteUser, refreshAccessToken};
