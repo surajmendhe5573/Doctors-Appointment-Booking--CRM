@@ -71,6 +71,21 @@ const deleteHospital= async(req, res)=>{
     } catch (error) {
         res.status(500).json({message: 'Internal server error'});
     }
+};
+
+const fetchAllHospitals= async(req, res)=>{
+    try {
+
+        if(req.user.role !== 'Admin' && req.user.role !== 'Patient'){
+            return res.status(403).json({message: 'Only admins and patients can see hospitals'});
+        }
+        const hospitals= await Hospital.find();
+        res.status(200).json({message: 'Hospital fetched successfully', data: hospitals});
+        
+    } catch (error) {
+       res.status(500).json({message: 'Internal server error'}); 
+    }
 }
 
-module.exports= {addHospital, updateHospital, deleteHospital};
+
+module.exports= {addHospital, updateHospital, deleteHospital, fetchAllHospitals};
