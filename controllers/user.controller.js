@@ -170,4 +170,26 @@ const refreshAccessToken = async (req, res) => {
     }
 };
 
-module.exports= {signUp, login, fetchAllUsers, editUsers, deleteUser, refreshAccessToken};
+const logout = async (req, res) => {
+    try {
+        const { id } = req.user; 
+
+        const userExist = await User.findById(id);
+        if (!userExist) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Remove the refresh token
+        userExist.refreshToken = null;
+        
+        await userExist.save();
+
+        res.status(200).json({ message: 'User logged out successfully' });
+    } catch (error) {
+        console.error('Error during logout:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+
+module.exports= {signUp, login, fetchAllUsers, editUsers, deleteUser, refreshAccessToken, logout};
