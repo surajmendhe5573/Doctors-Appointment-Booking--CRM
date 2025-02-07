@@ -181,7 +181,6 @@ const logout = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Remove the refresh token
         userExist.refreshToken = null;
 
         await userExist.save();
