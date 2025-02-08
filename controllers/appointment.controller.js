@@ -10,14 +10,12 @@ const createAppointment = async (req, res) => {
             return res.status(403).json({ message: 'Access denied. Only Patient can create appointments.' });
         }
 
-        // Validate patient
         const patient = await User.findById(patientId);
         if (!patient || patient.role !== 'Patient') {
             return res.status(400).json({ message: 'Invalid patient ID or the user is not a patient.' });
         }
 
-        // Validate doctor
-        const doctor = await Doctor.findById(doctorId);
+        const doctor = await Doctor.findById(doctorId).populate('hospital', 'name');
         if (!doctor) {
             return res.status(400).json({ message: 'Invalid doctor ID.' });
         }
@@ -42,7 +40,6 @@ const createAppointment = async (req, res) => {
             return res.status(400).json({ message: 'The doctor is already booked for this time slot.' });
         }
 
-        // Create a new appointment
         const appointment = new Appointment({
             patient: patientId,
             doctor: doctorId,
@@ -55,12 +52,19 @@ const createAppointment = async (req, res) => {
 
         // Populate patient name and doctor name
         const populatedAppointment = await Appointment.findById(appointment._id)
-            .populate('patient', 'name') // Populate patient name
+            .populate('patient', 'name') 
             .populate({
                 path: 'doctor',
                 populate: {
                     path: 'user',
-                    select: 'name' // Populate doctor's user name
+                    select: 'name' 
+                }
+            })
+            .populate({
+                path: 'doctor',
+                populate: {
+                    path: 'hospital',
+                    select: 'name' 
                 }
             });
 
@@ -68,8 +72,9 @@ const createAppointment = async (req, res) => {
             message: 'Appointment booked successfully',
             appointment: {
                 _id: populatedAppointment._id,
-                patientName: populatedAppointment.patient?.name, // Safely access name
-                doctorName: populatedAppointment.doctor?.user?.name, // Safely access doctor's user name
+                patientName: populatedAppointment.patient?.name, 
+                doctorName: populatedAppointment.doctor?.user?.name, 
+                hospitalName: populatedAppointment.doctor?.hospital?.name, 
                 date: populatedAppointment.date,
                 time: populatedAppointment.time,
                 status: populatedAppointment.status,
@@ -82,5 +87,6 @@ const createAppointment = async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
 
 module.exports = { createAppointment };
