@@ -14,7 +14,12 @@ const doctorSchema= new mongoose.Schema({
     availability: {
         days: [String], // e.g., ["Monday", "Wednesday"]
       timeSlots: [String], // e.g., ["10:00-12:00", "14:00-16:00"]
-    }
+    },
+    hospital: {
+        type: mongoose.Schema.ObjectId,
+        ref: 'Hospital',
+        required: true, 
+    },
 }, {timestamps: true});
 
 

@@ -1,9 +1,10 @@
 const Doctor = require('../models/doctor.model');
 const User = require('../models/user.model'); 
+const Hospital= require('../models/hospital.model');
 
 const addDoctor = async (req, res) => {
   try {
-    const { user, specialities, qualifications, availability } = req.body;
+    const { user, specialities, qualifications, availability, hospital } = req.body;
 
     const existingUser = await User.findById(user);
     if (!existingUser) {
@@ -11,8 +12,13 @@ const addDoctor = async (req, res) => {
     }
 
     if (existingUser.role !== 'Doctor') {
-        return res.status(400).json({ message: 'The user must be a doctor to add as a doctor.' });
-      }
+      return res.status(400).json({ message: 'The user must be a doctor to add as a doctor.' });
+    }
+
+    const existingHospital = await Hospital.findById(hospital);
+    if (!existingHospital) {
+      return res.status(404).json({ message: 'Hospital not found' });
+    }
 
     if (req.user.role !== 'Admin') {
       return res.status(403).json({ message: 'Access denied. Only admins can add doctors.' });
@@ -22,86 +28,128 @@ const addDoctor = async (req, res) => {
       user,
       specialities,
       qualifications,
-      availability
+      availability,
+      hospital,
     });
 
     await newDoctor.save();
-    res.status(201).json({message: 'Doctor added successfully', doctor: newDoctor });
 
+    const populatedDoctor = await Doctor.findById(newDoctor._id)
+      .populate('user', 'name') 
+      .populate('hospital', 'name'); 
+
+    res.status(201).json({
+      message: 'Doctor added successfully',
+      doctor: {
+        ...populatedDoctor.toObject(), 
+        doctorName: populatedDoctor.user.name, 
+        hospitalName: populatedDoctor.hospital.name, 
+      },
+    });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
 
 const updateDoctor = async (req, res) => {
-    try {
-      const { user, specialities, qualifications, availability } = req.body;
-      const { doctorId } = req.params; 
-  
-      if (req.user.role !== 'Admin') {
-        if (req.user.id !== user) {
-          return res.status(403).json({ message: 'Access denied. You can only update your own profile.' });
-        }
+  try {
+    const { user, specialities, qualifications, availability, hospital } = req.body;
+    const { doctorId } = req.params;
+
+    if (req.user.role !== 'Admin') {
+      if (req.user.id !== user) {
+        return res.status(403).json({ message: 'Access denied. You can only update your own profile.' });
       }
-  
-      const doctor = await Doctor.findById(doctorId);
-      if (!doctor) {
-        return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    const doctorUser = await User.findById(user);
+    if (!doctorUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (doctorUser.role !== 'Doctor') {
+      return res.status(400).json({ message: 'The associated user must be a doctor.' });
+    }
+
+    if (hospital) {
+      const existingHospital = await Hospital.findById(hospital);
+      if (!existingHospital) {
+        return res.status(404).json({ message: 'Hospital not found' });
       }
-  
-      // Check if the associated user is a doctor
-      const doctorUser = await User.findById(user);
-      if (!doctorUser) {
+      doctor.hospital = hospital; 
+    }
+
+    doctor.specialities = specialities || doctor.specialities;
+    doctor.qualifications = qualifications || doctor.qualifications;
+    doctor.availability = availability || doctor.availability;
+
+    if (user) {
+      const updatedUser = await User.findByIdAndUpdate(user, { $set: req.body.userDetails }, { new: true });
+      if (!updatedUser) {
         return res.status(404).json({ message: 'User not found' });
       }
-  
-      if (doctorUser.role !== 'Doctor') {
-        return res.status(400).json({ message: 'The associated user must be a doctor.' });
-      }
-  
-      doctor.specialities = specialities || doctor.specialities;
-      doctor.qualifications = qualifications || doctor.qualifications;
-      doctor.availability = availability || doctor.availability;
-  
-      if (user) {
-        const updatedUser = await User.findByIdAndUpdate(user, { $set: req.body.userDetails }, { new: true });
-        if (!updatedUser) {
-          return res.status(404).json({ message: 'User not found' });
-        }
-      }
-  
-      await doctor.save();
-      res.status(200).json({
-        message: 'Doctor information updated successfully',
-        doctor
-      });
-    } catch (error) {
-      res.status(500).json({ message: 'Internal server error' });
     }
-  };
 
-  const fetchAllDoctors = async (req, res) => {
-    try {
-      const doctors = await Doctor.find()
-        .populate({
-          path: 'user',
-          select: 'name email role phone address', 
-          match: { role: 'Doctor' } 
-        })
-        .exec();
-  
-      const filteredDoctors = doctors.filter(doctor => doctor.user);
-  
-      if (filteredDoctors.length === 0) {
-        return res.status(404).json({ message: 'No doctors found' });
-      }
-  
-      res.status(200).json({
-        message: 'Doctors fetched successfully', doctors: filteredDoctors});
-    } catch (error) {
-      res.status(500).json({ message: 'Internal server error' });
+    await doctor.save();
+
+    const populatedDoctor = await Doctor.findById(doctor._id)
+      .populate('user', 'name')
+      .populate('hospital', 'name'); 
+
+    
+    res.status(200).json({
+      message: 'Doctor information updated successfully',
+      doctor: {
+        ...populatedDoctor.toObject(), 
+        doctorName: populatedDoctor.user.name, 
+        hospitalName: populatedDoctor.hospital.name, 
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const fetchAllDoctors = async (req, res) => {
+  try {
+    const doctors = await Doctor.find()
+      .populate({
+        path: 'user',
+        select: 'name email role phone address', 
+        match: { role: 'Doctor' } 
+      })
+      .populate({
+        path: 'hospital',
+        select: 'name' 
+      })
+      .exec();
+
+    const filteredDoctors = doctors.filter(doctor => doctor.user);
+
+    if (filteredDoctors.length === 0) {
+      return res.status(404).json({ message: 'No doctors found' });
     }
-  };
+
+    res.status(200).json({
+      message: 'Doctors fetched successfully',
+      doctors: filteredDoctors.map(doctor => ({
+        ...doctor.toObject(),
+        doctorName: doctor.user.name, 
+        hospitalName: doctor.hospital?.name 
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 
   const deleteDoctors= async(req, res)=>{
         try {
