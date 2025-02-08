@@ -226,5 +226,81 @@ const updateAppointment = async (req, res) => {
       res.status(500).json({ message: 'Internal server error' });
     }
   };
+
+  const retrieveAppointments = async (req, res) => {
+    try {
+      const { role, id: userId } = req.user;
+      const { doctorId, patientId, date, status } = req.query;
   
-module.exports = { createAppointment, updateAppointment, cancelAppointment };
+      const query = {};
+  
+      if (role === 'Patient') {
+        query.patient = userId; // Patients can only see their own appointments
+      } else if (role === 'Doctor') {
+        query.doctor = userId; // Doctors can only see appointments assigned to them
+      } else if (role === 'Admin') {
+        // Admin can access all appointments, apply query filters if provided
+        if (doctorId) query.doctor = doctorId;
+        if (patientId) query.patient = patientId;
+      } else {
+        return res.status(403).json({ message: 'Access denied.' });
+      }
+  
+     
+      if (date) query.date = date; 
+      if (status) query.status = status; 
+  
+      const appointments = await Appointment.find(query)
+        .populate('patient', 'name email') 
+        .populate({
+          path: 'doctor',
+          populate: [
+            { path: 'user', select: 'name email' },
+            { path: 'hospital', select: 'name' },
+          ],
+        })
+        .sort({ date: 1, time: 1 }); // Sort by date and time
+  
+      res.status(200).json({ message: 'Appointments retrieved successfully', appointments });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }; 
+
+  const retrieveCancelledAppointments = async (req, res) => {
+    try {
+        if (req.user.role !== 'Admin') {
+            return res.status(403).json({ message: 'Access denied. Only Admin can retrieve canceled appointments.' });
+        }
+
+        const cancelledAppointments = await Appointment.find({ status: 'Canceled' })
+            .populate('patient', 'name')  
+            .populate('doctor', 'name')  
+            .populate('doctor.hospital', 'name'); 
+
+        if (cancelledAppointments.length === 0) {
+            return res.status(404).json({ message: 'No canceled appointments found.' });
+        }
+
+        res.status(200).json({
+            message: 'Cancelled appointments retrieved successfully.',
+            cancelledAppointments: cancelledAppointments.map((appointment) => ({
+                _id: appointment._id,
+                patientName: appointment.patient?.name,
+                doctorName: appointment.doctor?.name,
+                hospitalName: appointment.doctor?.hospital?.name,
+                date: appointment.date,
+                time: appointment.time,
+                status: appointment.status,
+                createdAt: appointment.createdAt,
+                updatedAt: appointment.updatedAt,
+            })),
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}; 
+  
+module.exports = { createAppointment, updateAppointment, cancelAppointment, retrieveAppointments, retrieveCancelledAppointments };
