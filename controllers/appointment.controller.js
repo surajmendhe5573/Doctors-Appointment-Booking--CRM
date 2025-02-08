@@ -302,5 +302,112 @@ const updateAppointment = async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 }; 
-  
-module.exports = { createAppointment, updateAppointment, cancelAppointment, retrieveAppointments, retrieveCancelledAppointments };
+
+const updateAppointmentStatus = async (req, res) => {
+    try {
+        const { appointmentId } = req.params;
+        const { status } = req.body;
+
+        
+        if (!["Upcoming", "Done", "Canceled"].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status provided' });
+        }
+
+        const appointment = await Appointment.findById(appointmentId);
+        if (!appointment) {
+            return res.status(404).json({ message: 'Appointment not found' });
+        }
+
+        if (req.user.role === 'Admin') {
+            appointment.status = status;
+        } else if (req.user.role === 'Doctor') {
+            if (String(appointment.doctor) !== String(req.user.id)) {
+                return res.status(403).json({ message: 'You can only update appointments for your own patients' });
+            }
+            appointment.status = status;
+        } else if (req.user.role === 'Patient') {
+            if (String(appointment.patient) !== String(req.user.id)) {
+                return res.status(403).json({ message: 'You can only update your own appointments' });
+            }
+            if (status !== "Canceled") {
+                return res.status(400).json({ message: 'Patients can only cancel their appointments' });
+            }
+            appointment.status = status;
+        }
+
+        await appointment.save();
+
+        res.status(200).json({
+            message: 'Appointment status updated successfully',
+            appointment: {
+                _id: appointment._id,
+                patientName: appointment.patient?.name,
+                doctorName: appointment.doctor?.name,
+                status: appointment.status,
+                date: appointment.date,
+                time: appointment.time,
+                createdAt: appointment.createdAt,
+                updatedAt: appointment.updatedAt,
+            },
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+const getUpcomingAppointments = async (req, res) => {
+    try {
+        const filter = { status: "Upcoming" };
+
+        if (req.user.role === 'Admin') {
+            filter.status = 'Upcoming';
+        } else if (req.user.role === 'Doctor') {
+            filter.doctor = req.user.id;
+        } else if (req.user.role === 'Patient') {
+            filter.patient = req.user.id;
+        }
+
+        const appointments = await Appointment.find(filter)
+            .populate('patient', 'name email') 
+            .populate('doctor', 'name email') 
+            .sort({ date: 1, time: 1 }); 
+
+        res.status(200).json({
+            message: 'Upcoming appointments fetched successfully',
+            appointments,
+ });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+const getDoneAppointments = async (req, res) => {
+    try {
+        const filter = { status: "Done" };
+        if (req.user.role === 'Admin') {
+            filter.status = 'Done';
+        } else if (req.user.role === 'Doctor') {
+            filter.doctor = req.user.id;
+        } else if (req.user.role === 'Patient') {
+            filter.patient = req.user.id;
+        }
+
+        const appointments = await Appointment.find(filter)
+            .populate('patient', 'name email') 
+            .populate('doctor', 'name email') 
+            .sort({ date: 1, time: 1 });
+
+        res.status(200).json({
+            message: 'Done appointments fetched successfully',
+            appointments,
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+module.exports = { createAppointment, updateAppointment, cancelAppointment, retrieveAppointments,
+                 retrieveCancelledAppointments, updateAppointmentStatus, getUpcomingAppointments, getDoneAppointments };
