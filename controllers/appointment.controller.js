@@ -409,5 +409,148 @@ const getDoneAppointments = async (req, res) => {
     }
 };
 
+const mongoose = require('mongoose');
+const transferAppointment = async (req, res) => {
+    try {
+        const { appointmentId, newDoctorId, date, time } = req.body;
+
+        // Check if the user has the necessary role to transfer the appointment
+        if (req.user.role !== 'Admin' && (req.user.role !== 'Doctor' || req.user.id !== req.body.doctorId)) {
+            return res.status(403).json({ message: 'Access denied. Only Admin or the Doctor who owns the appointment can transfer it.' });
+        }
+
+        // Check if the appointmentId is a valid ObjectId
+        if (!mongoose.Types.ObjectId.isValid(appointmentId)) {
+            return res.status(400).json({ message: 'Invalid appointment ID.' });
+        }
+
+        // Fetch the appointment to be transferred
+        const appointment = await Appointment.findById(appointmentId)
+            .populate('doctor')
+            .populate('patient');
+
+        if (!appointment) {
+            return res.status(404).json({ message: 'Appointment not found.' });
+        }
+
+        // Check if the logged-in doctor is the owner of the appointment (only applicable for doctors)
+        if (req.user.role === 'Doctor' && appointment.doctor._id.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'You can only transfer your own appointments.' });
+        }
+
+        // Fetch the new doctor details
+        const newDoctor = await Doctor.findById(newDoctorId);
+        if (!newDoctor) {
+            return res.status(400).json({ message: 'Invalid new doctor ID.' });
+        }
+
+        // Check if the new doctor is available on the selected date and time
+        const isDoctorAvailable = newDoctor.availability.days.includes(new Date(date).toLocaleDateString('en-US', { weekday: 'long' })) &&
+            newDoctor.availability.timeSlots.includes(time);
+
+        if (!isDoctorAvailable) {
+            return res.status(400).json({ message: 'The new doctor is not available at the selected date and time.' });
+        }
+
+        // Check for any conflicting appointments for the new doctor at the same date and time
+        const conflictingAppointment = await Appointment.findOne({
+            doctor: newDoctorId,
+            date,
+            time,
+            status: { $in: ['Upcoming'] }, // Only check upcoming appointments
+        });
+
+        if (conflictingAppointment) {
+            return res.status(400).json({ message: 'The new doctor is already booked for this time slot.' });
+        }
+
+        // Transfer the appointment to the new doctor
+        appointment.doctor = newDoctorId;
+        appointment.status = 'Upcoming'; // Reset status as needed for your use case
+        appointment.transferredTo = newDoctorId; // Track the transfer to a new doctor
+
+        // Save the updated appointment
+        await appointment.save();
+
+        // Populate relevant information and return the response
+        const updatedAppointment = await Appointment.findById(appointment._id)
+            .populate('patient', 'name')
+            .populate({
+                path: 'doctor',
+                populate: {
+                    path: 'user',
+                    select: 'name'
+                }
+            })
+            .populate('doctor.hospital');
+
+        // Extract doctor name safely using optional chaining
+        const doctorName = updatedAppointment.doctor?.user?.name || 
+                          updatedAppointment.doctor?.name ||  // Fallback if doctor name is directly on doctor
+                          'Unknown Doctor';
+
+        res.status(200).json({
+            message: 'Appointment transferred successfully.',
+            appointment: {
+                _id: updatedAppointment._id,
+                patientName: updatedAppointment.patient?.name,
+                doctorName: doctorName,  // Add the extracted doctor name
+                hospitalName: updatedAppointment.doctor?.hospital?.name,
+                date: updatedAppointment.date,
+                time: updatedAppointment.time,
+                status: updatedAppointment.status,
+                createdAt: updatedAppointment.createdAt,
+                updatedAt: updatedAppointment.updatedAt,
+            },
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+const getTransferredAppointments = async (req, res) => {
+    try {
+        
+        const appointments = await Appointment.find({ transferredTo: { $ne: null } })
+            .populate('patient', 'name')
+            .populate({
+                path: 'doctor',
+                populate: {
+                    path: 'user',
+                    select: 'name'
+                }
+            })
+            .populate('doctor.hospital')
+            .select('patient doctor date time status transferredTo createdAt updatedAt');
+
+        
+        if (appointments.length === 0) {
+            return res.status(404).json({ message: 'No transferred appointments found.' });
+        }
+        
+        res.status(200).json({
+            message: 'Transferred appointments fetched successfully.',
+            appointments: appointments.map(appointment => ({
+                _id: appointment._id,
+                patientName: appointment.patient?.name,
+                doctorName: appointment.doctor?.user?.name || appointment.doctor?.name,
+                hospitalName: appointment.doctor?.hospital?.name,
+                date: appointment.date,
+                time: appointment.time,
+                status: appointment.status,
+                transferredTo: appointment.transferredTo,
+                createdAt: appointment.createdAt,
+                updatedAt: appointment.updatedAt,
+            }))
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+
 module.exports = { createAppointment, updateAppointment, cancelAppointment, retrieveAppointments,
-                 retrieveCancelledAppointments, updateAppointmentStatus, getUpcomingAppointments, getDoneAppointments };
+                   retrieveCancelledAppointments, updateAppointmentStatus, getUpcomingAppointments,
+                   getDoneAppointments, transferAppointment, getTransferredAppointments };
