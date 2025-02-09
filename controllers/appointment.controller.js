@@ -1,6 +1,7 @@
 const Appointment = require('../models/appointment.model');
 const Doctor = require('../models/doctor.model');
 const User = require('../models/user.model');
+const client= require('../utils/redisClient');
 
 const createAppointment = async (req, res) => {
     try {
@@ -231,17 +232,58 @@ const updateAppointment = async (req, res) => {
     }
   };
 
-  const retrieveAppointments = async (req, res) => {
+//   const retrieveAppointments = async (req, res) => {
+//     try {
+//       const { role, id: userId } = req.user;
+//       const { doctorId, patientId, date, status } = req.query;
+  
+//       const query = {};
+  
+//       if (role === 'Patient') {
+//         query.patient = userId; 
+//       } else if (role === 'Doctor') {
+//         query.doctor = userId; 
+//       } else if (role === 'Admin') {
+//         if (doctorId) query.doctor = doctorId;
+//         if (patientId) query.patient = patientId;
+//       } else {
+//         return res.status(403).json({ message: 'Access denied.' });
+//       }
+  
+     
+//       if (date) query.date = date; 
+//       if (status) query.status = status; 
+  
+//       const appointments = await Appointment.find(query)
+//         .populate('patient', 'name email') 
+//         .populate({
+//           path: 'doctor',
+//           populate: [
+//             { path: 'user', select: 'name email' },
+//             { path: 'hospital', select: 'name' },
+//           ],
+//         })
+//         .sort({ date: 1, time: 1 }); 
+  
+//       res.status(200).json({ message: 'Appointments retrieved successfully', appointments });
+//     } catch (error) {
+//       console.error(error);
+//       res.status(500).json({ message: 'Internal server error' });
+//     }
+//   }; 
+
+const retrieveAppointments = async (req, res) => {
     try {
       const { role, id: userId } = req.user;
       const { doctorId, patientId, date, status } = req.query;
   
       const query = {};
   
+      // Constructing the query based on user role
       if (role === 'Patient') {
-        query.patient = userId; 
+        query.patient = userId;
       } else if (role === 'Doctor') {
-        query.doctor = userId; 
+        query.doctor = userId;
       } else if (role === 'Admin') {
         if (doctorId) query.doctor = doctorId;
         if (patientId) query.patient = patientId;
@@ -249,12 +291,24 @@ const updateAppointment = async (req, res) => {
         return res.status(403).json({ message: 'Access denied.' });
       }
   
-     
-      if (date) query.date = date; 
-      if (status) query.status = status; 
+      if (date) query.date = date;
+      if (status) query.status = status;
   
+      // Create a unique cache key based on query and role
+      const cacheKey = `appointments_${role}_${userId || ''}_${doctorId || ''}_${patientId || ''}_${date || ''}_${status || ''}`;
+  
+      // Check cache
+      const cachedAppointments = await client.get(cacheKey);
+      if (cachedAppointments) {
+        return res.status(200).json({
+          message: 'Appointments retrieved successfully (cached)',
+          appointments: JSON.parse(cachedAppointments),
+        });
+      }
+  
+      // Fetch appointments from the database if not cached
       const appointments = await Appointment.find(query)
-        .populate('patient', 'name email') 
+        .populate('patient', 'name email')
         .populate({
           path: 'doctor',
           populate: [
@@ -262,14 +316,18 @@ const updateAppointment = async (req, res) => {
             { path: 'hospital', select: 'name' },
           ],
         })
-        .sort({ date: 1, time: 1 }); 
+        .sort({ date: 1, time: 1 });
+  
+      // Cache the fetched appointments with an expiry time
+      await client.set(cacheKey, JSON.stringify(appointments), { EX: 3600 });
   
       res.status(200).json({ message: 'Appointments retrieved successfully', appointments });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: 'Internal server error' });
     }
-  }; 
+  };
+  
 
   const retrieveCancelledAppointments = async (req, res) => {
     try {
