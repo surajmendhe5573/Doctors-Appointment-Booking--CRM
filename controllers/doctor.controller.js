@@ -173,5 +173,65 @@ const fetchAllDoctors = async (req, res) => {
             res.status(500).json({message: 'Internal server error'});
         }
   }
+  
+  const searchDoctors = async (req, res) => {
+    try {
+      const { name, specialities, availability } = req.query;
+      console.log('Query Parameters:', req.query);
+  
+      const searchQuery = {};
+  
+      if (name) {
+        const users = await User.find({ name: { $regex: name, $options: 'i' }, role: 'Doctor' });
+        if (users.length === 0) {
+          return res.status(404).json({ message: 'No doctors found based on the search criteria' });
+        }
+        
+        const userIds = users.map(user => user._id);
+        searchQuery.user = { $in: userIds };
+      }
+  
+      if (specialities) {
+        searchQuery.specialities = { $in: specialities.split(',') };
+      }
+  
+      if (availability) {
+        const availabilityCriteria = availability.split(',');
+        searchQuery['availability.days'] = { $in: availabilityCriteria };
+      }
+  
+      console.log('Search Query:', searchQuery); 
+  
+      const doctors = await Doctor.find(searchQuery)
+        .populate({
+          path: 'user',
+          select: 'name email role phone address',
+        })
+        .populate({
+          path: 'hospital',
+          select: 'name',
+        })
+        .exec();
+  
+      console.log('Doctors Found:', doctors); 
+  
+      if (doctors.length === 0) {
+        return res.status(404).json({ message: 'No doctors found based on the search criteria' });
+      }
+  
+      res.status(200).json({
+        message: 'Doctors fetched successfully',
+        doctors: doctors.map(doctor => ({
+          ...doctor.toObject(),
+          doctorName: doctor.user.name,
+          hospitalName: doctor.hospital?.name,
+        })),
+      });
+    } catch (error) {
+      console.log('Error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  };
 
-module.exports = { addDoctor, updateDoctor, fetchAllDoctors, deleteDoctors };
+  
+module.exports = { addDoctor, updateDoctor, fetchAllDoctors, deleteDoctors, searchDoctors };
