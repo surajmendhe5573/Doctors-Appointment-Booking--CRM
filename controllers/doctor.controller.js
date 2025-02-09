@@ -2,6 +2,7 @@ const Doctor = require('../models/doctor.model');
 const User = require('../models/user.model'); 
 const Hospital= require('../models/hospital.model');
 const Appointment= require('../models/appointment.model');
+const client= require('../utils/redisClient');
 
 const addDoctor = async (req, res) => {
   try {
@@ -118,33 +119,83 @@ const updateDoctor = async (req, res) => {
   }
 };
 
+// const fetchAllDoctors = async (req, res) => {
+//   try {
+//     const doctors = await Doctor.find()
+//       .populate({
+//         path: 'user',
+//         select: 'name email role phone address', 
+//         match: { role: 'Doctor' } 
+//       })
+//       .populate({
+//         path: 'hospital',
+//         select: 'name' 
+//       })
+//       .exec();
+
+//     const filteredDoctors = doctors.filter(doctor => doctor.user);
+
+//     if (filteredDoctors.length === 0) {
+//       return res.status(404).json({ message: 'No doctors found' });
+//     }
+
+//     res.status(200).json({
+//       message: 'Doctors fetched successfully',
+//       doctors: filteredDoctors.map(doctor => ({
+//         ...doctor.toObject(),
+//         doctorName: doctor.user.name, 
+//         hospitalName: doctor.hospital?.name 
+//       }))
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Internal server error' });
+//   }
+// };
+
 const fetchAllDoctors = async (req, res) => {
   try {
+    // Check for cached data
+    const cachedDoctors = await client.get('all_doctors');
+    if (cachedDoctors) {
+      return res.status(200).json({
+        message: 'Doctors fetched successfully (cached)',
+        doctors: JSON.parse(cachedDoctors),
+      });
+    }
+
+    // Fetch data from the database if not cached
     const doctors = await Doctor.find()
       .populate({
         path: 'user',
-        select: 'name email role phone address', 
-        match: { role: 'Doctor' } 
+        select: 'name email role phone address',
+        match: { role: 'Doctor' },
       })
       .populate({
         path: 'hospital',
-        select: 'name' 
+        select: 'name',
       })
       .exec();
 
+    // Filter out doctors without a valid user
     const filteredDoctors = doctors.filter(doctor => doctor.user);
 
     if (filteredDoctors.length === 0) {
       return res.status(404).json({ message: 'No doctors found' });
     }
 
+    // Map the results to include additional details
+    const formattedDoctors = filteredDoctors.map(doctor => ({
+      ...doctor.toObject(),
+      doctorName: doctor.user.name,
+      hospitalName: doctor.hospital?.name,
+    }));
+
+    // Cache the results
+    await client.set('all_doctors', JSON.stringify(formattedDoctors), { EX: 3600 });
+
     res.status(200).json({
       message: 'Doctors fetched successfully',
-      doctors: filteredDoctors.map(doctor => ({
-        ...doctor.toObject(),
-        doctorName: doctor.user.name, 
-        hospitalName: doctor.hospital?.name 
-      }))
+      doctors: formattedDoctors,
     });
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' });
@@ -173,65 +224,7 @@ const fetchAllDoctors = async (req, res) => {
             
             res.status(500).json({message: 'Internal server error'});
         }
-  }
-
-  // const searchDoctors = async (req, res) => {
-  //   try {
-  //     const { name, specialities, availability } = req.query;
-  
-  //     const searchQuery = {};
-  
-  //     if (name) {
-  //       const users = await User.find({ name: { $regex: name, $options: 'i' }, role: 'Doctor' });
-  //       if (users.length === 0) {
-  //         return res.status(404).json({ message: 'No doctors found based on the search criteria' });
-  //       }
-  
-  //       const userIds = users.map(user => user._id);
-  //       searchQuery.user = { $in: userIds };
-  //     }
-  
-  //     if (specialities) {
-  //       searchQuery.specialities = { $all: specialities.split(',') };
-  //     }
-  
-  //     if (availability) {
-  //       const availabilityCriteria = availability.split(',');
-  //       searchQuery['availability.days'] = { $in: availabilityCriteria };
-  //     }
-  
-  //     console.log('Search Query:', searchQuery); 
-
-  //     const doctors = await Doctor.find(searchQuery)
-  //       .populate({
-  //         path: 'user',
-  //         select: 'name email role phone address',
-  //       })
-  //       .populate({
-  //         path: 'hospital',
-  //         select: 'name',
-  //       })
-  //       .exec();
-  
-  //     console.log('Doctors Found:', doctors); 
-  
-  //     if (doctors.length === 0) {
-  //       return res.status(404).json({ message: 'No doctors found based on the search criteria' });
-  //     }
-  
-  //     res.status(200).json({
-  //       message: 'Doctors fetched successfully',
-  //       doctors: doctors.map(doctor => ({
-  //         ...doctor.toObject(),
-  //         doctorName: doctor.user.name,
-  //         hospitalName: doctor.hospital?.name,
-  //       })),
-  //     });
-  //   } catch (error) {
-  //     console.log('Error:', error);
-  //     res.status(500).json({ message: 'Internal server error' });
-  //   }
-  // };
+  };
   
   const searchDoctors = async (req, res) => {
     try {
