@@ -1,4 +1,5 @@
 const Hospital= require('../models/hospital.model');
+const client= require('../utils/redisClient');
 
 const addHospital= async(req, res)=>{
         try {
@@ -79,8 +80,16 @@ const fetchAllHospitals= async(req, res)=>{
         if(req.user.role !== 'Admin' && req.user.role !== 'Patient'){
             return res.status(403).json({message: 'Only admins and patients can see hospitals'});
         }
+
+        const cachedHospitals= await client.get('all_hospitals');
+        if(cachedHospitals){
+            return res.status(200).json({mesage: 'Hospitals fetched successfully (cached)', data:JSON.parse(cachedHospitals)});
+        }
+
         const hospitals= await Hospital.find();
-        res.status(200).json({message: 'Hospital fetched successfully', data: hospitals});
+
+        await client.set('all_hospitals', JSON.stringify(hospitals), {EX: 3600});
+        res.status(200).json({message: 'Hospitals fetched successfully', data: hospitals});
         
     } catch (error) {
        res.status(500).json({message: 'Internal server error'}); 
