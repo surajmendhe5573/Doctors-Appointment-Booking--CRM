@@ -87,5 +87,40 @@ const fetchAllHospitals= async(req, res)=>{
     }
 }
 
+const searchHospitals = async (req, res) => {
+    try {
+        const { name, address, departments } = req.query;
 
-module.exports= {addHospital, updateHospital, deleteHospital, fetchAllHospitals};
+        const searchCriteria = {};
+
+        if (name && name.trim() !== '') {
+            searchCriteria.name = { $regex: name, $options: 'i' }; 
+        }
+
+        if (address && address.trim() !== '') {
+            searchCriteria.address = { $regex: address, $options: 'i' }; 
+        }
+
+        if (departments && departments.trim() !== '') {
+            const departmentList = departments.split(',').map(dep => dep.trim());
+            searchCriteria.departments = { $in: departmentList }; 
+        }
+
+        if (Object.keys(searchCriteria).length === 0) {
+            return res.status(400).json({ message: 'Please provide at least one search criteria (name, address, or departments).' });
+        }
+
+        const hospitals = await Hospital.find(searchCriteria);
+
+        if (hospitals.length === 0) {
+            return res.status(404).json({ message: 'No hospitals found matching the search criteria.' });
+        }
+
+        res.status(200).json({ message: 'Hospitals fetched successfully', data: hospitals });
+    } catch (error) {
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+
+module.exports= {addHospital, updateHospital, deleteHospital, fetchAllHospitals, searchHospitals};
