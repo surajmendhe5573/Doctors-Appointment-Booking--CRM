@@ -83,6 +83,22 @@ const fetchAllUsers= async(req, res)=>{
     }
 };
 
+
+const fetchUser= async(req, res)=>{
+    try {
+        const user = await User.findById(req.user.id); 
+
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({message: 'User fetched successfully', user});
+        
+    } catch (error) {
+        res.status(500).json({message: 'Internaal server error'});
+    }
+}; 
+
 const editUsers= async(req, res)=>{
     try {
         const {id}= req.params;
@@ -277,4 +293,4 @@ const resetPassword = async (req, res) => {
 };
 
 
-module.exports= {signUp, login, fetchAllUsers, editUsers, deleteUser, refreshAccessToken, logout, forgotPassword, resetPassword};
+module.exports= {signUp, login, fetchAllUsers, editUsers, deleteUser, refreshAccessToken, logout, forgotPassword, resetPassword, fetchUser};
