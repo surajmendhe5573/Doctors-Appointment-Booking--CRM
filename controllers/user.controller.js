@@ -4,6 +4,7 @@ const jwt= require('jsonwebtoken');
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');  
+const redisClient= require('../utils/redisClient');
 
 const signUp= async(req, res)=>{
     try {
@@ -69,13 +70,17 @@ const login= async(req, res)=>{
 
 const fetchAllUsers= async(req, res)=>{
     try {
+        const cachedUsers= await redisClient.get('all_users');
+        if(cachedUsers){
+            return res.status(200).json({message: 'Users fetched successfully (cached)', users:JSON.parse(cachedUsers)});
+        }
 
         const users= await User.find({}, '-password');
-        
         if(users.length==0){
             return res.status(404).json({message: 'User not found'});
         }
 
+        await redisClient.set('all_users', JSON.stringify(users), {EX: 3600});
         res.status(200).json({message: 'Users fetched successfully', users});
         
     } catch (error) {
@@ -86,16 +91,22 @@ const fetchAllUsers= async(req, res)=>{
 
 const fetchUser= async(req, res)=>{
     try {
-        const user = await User.findById(req.user.id); 
 
+        const cachedUsers= await redisClient.get('user');
+        if(cachedUsers){
+            return res.status(200).json({message: 'User fetched successfully (cached)', user:JSON.parse(cachedUsers)});
+        }
+
+        const user = await User.findById(req.user.id); 
         if (!user) {
           return res.status(404).json({ message: "User not found" });
         }
 
+        await redisClient.set('user', JSON.stringify(user), {EX: 3600});
         res.status(200).json({message: 'User fetched successfully', user});
         
     } catch (error) {
-        res.status(500).json({message: 'Internaal server error'});
+        res.status(500).json({message: 'Internal server error'});
     }
 }; 
 
