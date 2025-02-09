@@ -1,6 +1,7 @@
 const Doctor = require('../models/doctor.model');
 const User = require('../models/user.model'); 
 const Hospital= require('../models/hospital.model');
+const Appointment= require('../models/appointment.model');
 
 const addDoctor = async (req, res) => {
   try {
@@ -173,11 +174,10 @@ const fetchAllDoctors = async (req, res) => {
             res.status(500).json({message: 'Internal server error'});
         }
   }
-  
+
   // const searchDoctors = async (req, res) => {
   //   try {
   //     const { name, specialities, availability } = req.query;
-  //     console.log('Query Parameters:', req.query);
   
   //     const searchQuery = {};
   
@@ -186,13 +186,13 @@ const fetchAllDoctors = async (req, res) => {
   //       if (users.length === 0) {
   //         return res.status(404).json({ message: 'No doctors found based on the search criteria' });
   //       }
-        
+  
   //       const userIds = users.map(user => user._id);
   //       searchQuery.user = { $in: userIds };
   //     }
   
   //     if (specialities) {
-  //       searchQuery.specialities = { $in: specialities.split(',') };
+  //       searchQuery.specialities = { $all: specialities.split(',') };
   //     }
   
   //     if (availability) {
@@ -201,7 +201,7 @@ const fetchAllDoctors = async (req, res) => {
   //     }
   
   //     console.log('Search Query:', searchQuery); 
-  
+
   //     const doctors = await Doctor.find(searchQuery)
   //       .populate({
   //         path: 'user',
@@ -232,10 +232,13 @@ const fetchAllDoctors = async (req, res) => {
   //     res.status(500).json({ message: 'Internal server error' });
   //   }
   // };
-
+  
   const searchDoctors = async (req, res) => {
     try {
       const { name, specialities, availability } = req.query;
+  
+      // console.log('Query Parameters:', req.query); // Log all query parameters
+      // console.log('Availability from query:', availability); // Log availability
   
       const searchQuery = {};
   
@@ -258,8 +261,6 @@ const fetchAllDoctors = async (req, res) => {
         searchQuery['availability.days'] = { $in: availabilityCriteria };
       }
   
-      console.log('Search Query:', searchQuery); 
-
       const doctors = await Doctor.find(searchQuery)
         .populate({
           path: 'user',
@@ -271,26 +272,56 @@ const fetchAllDoctors = async (req, res) => {
         })
         .exec();
   
-      console.log('Doctors Found:', doctors); 
-  
       if (doctors.length === 0) {
         return res.status(404).json({ message: 'No doctors found based on the search criteria' });
       }
   
+      // Filter time slots based on existing appointments
+      const updatedDoctors = await Promise.all(
+        doctors.map(async doctor => {
+          let availableTimeSlots = doctor.availability.timeSlots;
+  
+          if (availability) {
+            const days = availability.split(','); // Get all days provided in the query
+  
+            console.log('Doctor:', doctor._id);
+            console.log('Days to filter:', days);
+  
+            // Fetch all appointments for the doctor on the specified days
+            const bookedAppointments = await Appointment.find({
+              doctor: doctor._id,
+              day: { $in: days }, // Match appointments for any of the specified days
+            }).select('time');
+  
+            console.log('Booked Appointments:', bookedAppointments);
+  
+            const bookedTimeSlots = bookedAppointments.map(appointment => appointment.time);
+            availableTimeSlots = doctor.availability.timeSlots.filter(
+              timeSlot => !bookedTimeSlots.includes(timeSlot)
+            );
+  
+            // console.log('Available Time Slots:', availableTimeSlots);
+          }
+  
+          return {
+            ...doctor.toObject(),
+            availableTimeSlots,
+          };
+        })
+      );
+  
       res.status(200).json({
         message: 'Doctors fetched successfully',
-        doctors: doctors.map(doctor => ({
-          ...doctor.toObject(),
+        doctors: updatedDoctors.map(doctor => ({
+          ...doctor,
           doctorName: doctor.user.name,
           hospitalName: doctor.hospital?.name,
         })),
       });
     } catch (error) {
-      console.log('Error:', error);
+      console.error('Error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
-  };
-  
-
+  }; 
 
 module.exports = { addDoctor, updateDoctor, fetchAllDoctors, deleteDoctors, searchDoctors };
