@@ -56,6 +56,7 @@ The **Doctors Appointment Booking CRM** is an advanced platform designed to stre
 - **Database**: MongoDB, Redis (for caching)
 - **Authentication**: JSON Web Tokens (JWT)
 - **Email Services**: Nodemailer
+- **API Rate Limiting**: Express Rate Limit 
 - **API Testing**: Postman
 - **Version Control**: Git and GitHub
 
