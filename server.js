@@ -1,7 +1,9 @@
 const express= require('express');
 const app= express();
+const helmet = require("helmet");
 require('dotenv').config();
 
+app.use(helmet());
 app.use(express.json());
 
 app.get('/', (req, res)=>{
