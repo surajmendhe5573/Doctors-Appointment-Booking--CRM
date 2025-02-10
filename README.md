@@ -2,7 +2,6 @@
 
 The **Doctors Appointment Booking CRM** is an advanced platform designed to streamline healthcare management by enabling efficient user management, doctor appointment scheduling, hospital data management, and patient reports. The system ensures seamless interaction between patients, doctors, and administrators while focusing on security, scalability, and user convenience.
 
----
 
 ## Features
 
@@ -49,45 +48,42 @@ The **Doctors Appointment Booking CRM** is an advanced platform designed to stre
 2. **Get Feedbacks for a Doctor**: Fetch feedbacks for a specific doctor.
 3. **Get Feedback for a Hospital**: Fetch feedbacks for a specific hospital.
 
----
+
 
 ## Technologies Used
 - **Backend Framework**: Node.js with Express.js
-- **Database**: MongoDB (or any preferred database)
+- **Database**: MongoDB, Redis (for caching)
 - **Authentication**: JSON Web Tokens (JWT)
-- **API Documentation**: Swagger/OpenAPI (optional)
+- **Email Services**: Nodemailer
 - **Version Control**: Git and GitHub
+- **API Testing**: Postman
 
----
 
-## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/doctors-appointment-booking-crm.git
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js and npm installed
-- MongoDB 
+- MongoDB, Redis
 
 
 ## Installation and Setup
 - Clone the repository
 ```
-git clone git clone https://github.com/surajmendhe5573/crypto-app.git
+git clone https://github.com/surajmendhe5573/Doctors-Appointment-Booking--CRM
 
 ```
 - Install dependencies
 ```
-cd <crypto-app>
+cd <Doctors-Appointment-Booking--CRM>
 npm install
 ```
 - Build and run the project
 ```
 npm start
 ```
+
 
 ## Environment Variables
 
@@ -98,9 +94,19 @@ Create a `.env` file in the root directory of the project with the following var
 PORT=5000
 
 # Database Connection
-MONGODB_URI=mongodb://localhost:27017/defaultdb
+MONGO_URI=mongodb://localhost:27017/defaultdb
+
+
+# JWT Secrets
+JWT_SECRET=your_jwt_auth_secret
+JWT_REFRESH_SECRET=your_jwt_refresh_secret
+
+# Email credentials
+EMAIL=your_email@example.com
+EMAIL_PASSWORD=your_email_password
 
 ```
+
 
 ## 🚀 About Me
 I'm a Backend developer...
