@@ -616,36 +616,29 @@ const getDoctorAvailability = async (req, res) => {
     try {
         const { doctorId, date } = req.query;
 
-        // Validate input
         if (!doctorId || !date) {
             return res.status(400).json({ message: 'Doctor ID and date are required.' });
         }
 
-        // Fetch the doctor's availability
         const doctor = await Doctor.findById(doctorId);
         if (!doctor) {
             return res.status(404).json({ message: 'Doctor not found.' });
         }
 
-        // Extract the day name from the date
         const day = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
 
-        // Check if the doctor is available on the given day
         if (!doctor.availability.days.includes(day)) {
             return res.status(400).json({ message: 'Doctor is not available on the selected day.' });
         }
 
-        // Fetch all appointments for the doctor on the specified date
         const appointments = await Appointment.find({
             doctor: doctorId,
             date,
             status: { $in: ['Upcoming'] }, // Only consider upcoming appointments
         });
 
-        // Extract booked time slots
+        
         const bookedSlots = appointments.map(appointment => appointment.time);
-
-        // Filter out booked slots from the doctor's availability
         const availableSlots = doctor.availability.timeSlots.filter(slot => !bookedSlots.includes(slot));
 
         res.status(200).json({
