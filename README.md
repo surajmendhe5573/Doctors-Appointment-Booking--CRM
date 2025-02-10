@@ -42,6 +42,7 @@ The **Doctors Appointment Booking CRM** is an advanced platform designed to stre
 8. **Retrieve Done Appointments**: Fetch all done status appointments.
 9. **Transfer Appointment**: Reschedule appointments with a different doctor.
 10. **Get Transferred Appointments**: Track previously transferred appointments.
+11.  **Fetch Doctor Availability**: Get Doctor Availability based on Done Status.
 
 ### Feedback API
 1. **Add Feedback**: Add feedback for doctors or hospitals.
