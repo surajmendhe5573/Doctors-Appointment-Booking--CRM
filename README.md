@@ -108,7 +108,6 @@ EMAIL_PASSWORD=your_email_password
 
 ```
 
-
 ## 🚀 About Me
 I'm a Backend developer...
 
